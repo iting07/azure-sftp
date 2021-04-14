@@ -2,8 +2,36 @@
     "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "sftpUser": {
-            "value": "foo"
+        "userAzureFileVolumes": {
+            "value": [
+                "foo",
+                "bar",
+                "baz"
+            ]
+        },
+        "volumeMounts": {
+            "value": [
+                {
+                    "mountPath": "/etc/sftp",
+                    "name": "users-conf-volume",
+                    "readOnly": true
+                },
+                {
+                    "mountPath": "/home/foo/upload",
+                    "name": "foo-volume",
+                    "readOnly": false
+                },
+                {
+                    "mountPath": "/home/bar/upload",
+                    "name": "bar-volume",
+                    "readOnly": false
+                },
+                {
+                    "mountPath": "/home/baz/upload",
+                    "name": "baz-volume",
+                    "readOnly": false
+                }
+            ]
         }
     }
 }

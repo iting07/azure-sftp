@@ -2,6 +2,15 @@
     "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
+         "volumeMounts": {
+            "type": "array"
+        },
+        "userAzureFileVolumes": {
+            "type": "array",
+            "metadata": {
+                "description": "description"
+            }
+        },
         "storageAccountType": {
             "type": "string",
             "defaultValue": "Standard_LRS",
@@ -11,19 +20,6 @@
             ],
             "metadata": {
                 "description": "Storage account type"
-            }
-        },
-        "fileShareName": {
-            "type": "string",
-            "defaultValue": "sftpfileshare",
-            "metadata": {
-                "description": "Name of file share to be created"
-            }
-        },
-        "sftpUser": {
-            "type": "string",
-            "metadata": {
-                "description": "Username to use for SFTP access"
             }
         },
         "location": {
@@ -42,9 +38,6 @@
         }
     },
     "variables": {
-        "cliContainerName": "create-share",
-        "cliContainerGroupName": "create-share-group",
-        "cliContainerImage": "mcr.microsoft.com/azure-cli:latest",
         "sftpContainerName": "sftp",
         "sftpContainerGroupName": "sftp-group",
         "sftpContainerImage": "atmoz/sftp:latest",
@@ -63,49 +56,16 @@
             "properties": {}
         },
         {
-            "type": "Microsoft.ContainerInstance/containerGroups",
-            "name": "[variables('cliContainerGroupName')]",
-            "apiVersion": "2018-04-01",
-            "location": "[parameters('location')]",
+            "copy": {
+                "name": "userAzureFileVolumes",
+                "count": "[length(parameters('userAzureFileVolumes'))]"
+            },
+            "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+            "apiVersion": "2019-06-01",
+            "name": "[concat(variables('storageAccountName'), '/default/', parameters('userAzureFileVolumes')[copyIndex()])]",
             "dependsOn": [
-                "[variables('storageAccountName')]"
-            ],
-            "properties": {
-                "containers": [
-                    {
-                        "name": "[variables('cliContainerName')]",
-                        "properties": {
-                            "image": "[variables('cliContainerImage')]",
-                            "command": [
-                                "az",
-                                "storage",
-                                "share",
-                                "create",
-                                "--name",
-                                "[parameters('fileShareName')]"
-                            ],
-                            "environmentVariables": [
-                                {
-                                    "name": "AZURE_STORAGE_KEY",
-                                    "value": "[listKeys(variables('storageAccountName'),'2018-02-01').keys[0].value]"
-                                },
-                                {
-                                    "name": "AZURE_STORAGE_ACCOUNT",
-                                    "value": "[variables('storageAccountName')]"
-                                }
-                            ],
-                            "resources": {
-                                "requests": {
-                                    "cpu": 1,
-                                    "memoryInGB": 1
-                                }
-                            }
-                        }
-                    }
-                ],
-                "restartPolicy": "OnFailure",
-                "osType": "Linux"
-            }
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+            ]
         },
         {
             "type": "Microsoft.ContainerInstance/containerGroups",
@@ -113,7 +73,7 @@
             "apiVersion": "2018-04-01",
             "location": "[parameters('location')]",
             "dependsOn": [
-                "[variables('cliContainerGroupName')]"
+                "userAzureFileVolumes"
             ],
             "properties": {
                 "containers": [
@@ -132,18 +92,7 @@
                                     "port": 22
                                 }
                             ],
-                            "volumeMounts": [
-                                {
-                                    "mountPath": "[concat('/home/', parameters('sftpUser'), '/upload')]",
-                                    "name": "sftpvolume",
-                                    "readOnly": false
-                                },
-                                {
-                                    "mountPath": "/etc/sftp",
-                                    "name": "users",
-                                    "readOnly": true
-                                }
-                            ]
+                            "volumeMounts": "[parameters('volumeMounts')]"
                         }
                     }
                 ],
@@ -161,19 +110,37 @@
                 "restartPolicy": "OnFailure",
                 "volumes": [
                     {
-                        "name": "sftpvolume",
+                        "name": "users-conf-volume",
                         "azureFile": {
-                            "readOnly": false,
-                            "shareName": "[parameters('fileShareName')]",
+                            "readOnly": true,
+                            "shareName": "users-conf",
                             "storageAccountName": "[variables('storageAccountName')]",
                             "storageAccountKey": "[listKeys(variables('storageAccountName'),'2018-02-01').keys[0].value]"
                         }
                     },
                     {
-                        "name": "users",
+                        "name": "foo-volume",
                         "azureFile": {
-                            "readOnly": true,
-                            "shareName": "users",
+                            "readOnly": false,
+                            "shareName": "foo",
+                            "storageAccountName": "[variables('storageAccountName')]",
+                            "storageAccountKey": "[listKeys(variables('storageAccountName'),'2018-02-01').keys[0].value]"
+                        }
+                    },
+                    {
+                        "name": "bar-volume",
+                        "azureFile": {
+                            "readOnly": false,
+                            "shareName": "bar",
+                            "storageAccountName": "[variables('storageAccountName')]",
+                            "storageAccountKey": "[listKeys(variables('storageAccountName'),'2018-02-01').keys[0].value]"
+                        }
+                    },
+                    {
+                        "name": "baz-volume",
+                        "azureFile": {
+                            "readOnly": false,
+                            "shareName": "baz",
                             "storageAccountName": "[variables('storageAccountName')]",
                             "storageAccountKey": "[listKeys(variables('storageAccountName'),'2018-02-01').keys[0].value]"
                         }

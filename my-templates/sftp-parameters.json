@@ -1,0 +1,48 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "containerName": {
+            "value": "sftp-container"
+        },
+        "containerGroupName": {
+            "value": "aci-sftp-ause"
+        },
+        "sftpUsers": {
+            "value": [
+                "userone",
+                "usertwo",
+                "userthree"
+            ]
+        },
+        "sftpContainerImage": {
+            "value": "atmoz/sftp:latest"
+        },
+        "existingStorageAccountRg": {
+            "value": ""
+        },
+        "existingVnetRg": {
+            "value": ""
+        },
+        "existingVnetName": {
+            "value": ""
+        },
+        "existingSubnetName": {
+            "value": ""
+        },
+        "containerPorts": {
+            "value": [
+                {
+                    "port": "22",
+                    "protocol": "TCP"
+                }
+            ]
+        },
+        "containerCpuCores": {
+            "value": "2"
+        },
+        "containerMemoryInGb": {
+            "value": "2"
+        }
+    }
+}

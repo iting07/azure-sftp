@@ -1,0 +1,222 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "containerName": {
+            "type": "string"
+        },
+        "containerGroupName": {
+            "type": "string"
+        },
+        "sftpUsers": {
+            "type": "array"
+        },
+        "existingStorageAccountRg": {
+            "type": "string",
+            "metadata": {
+                "description": "Resource Group name of existing Storage Account used for SFTP"
+            }
+        },
+        "existingStorageAccountName": {
+            "type": "string",
+            "defaultValue": "[concat('sftpstg', uniqueString(resourceGroup().id))]",
+            "metadata": {
+                "description": "Storage Account Name of existing Storage Account used for SFTP"
+            }
+        },
+        "existingVnetRg": {
+            "type": "string"
+        },
+        "existingVnetName": {
+            "type": "string"
+        },
+        "existingSubnetName": {
+            "type": "string"
+        },
+        "containerPorts": {
+            "type": "array"
+        },
+        "containerCpuCores": {
+            "type": "string"
+        },
+        "containerMemoryInGb": {
+            "type": "string"
+        },
+        "sftpContainerImage": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "NetworkProfileName": "[concat('networkprofile-', parameters('containerGroupName'))]",
+        "interfaceConfigName": "aci-nic01",
+        "interfaceIpConfig": "ipconfigprofile01",
+        "storageAccountId": "[resourceId(parameters('existingStorageAccountRg'), 'Microsoft.Storage/storageAccounts', parameters('existingStorageAccountName'))]",
+        "sftpEnvVariable": "[concat(parameters('sftpUsers')[0], '::1001', ' ', parameters('sftpUsers')[1], '::1001', ' ', parameters('sftpUsers')[2], '::1001')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Network/networkProfiles",
+            "name": "[variables('NetworkProfileName')]",
+            "apiVersion": "2019-11-01",
+            "location": "australiasoutheast",
+            "properties": {
+                "containerNetworkInterfaceConfigurations": [
+                    {
+                        "name": "[variables('interfaceConfigName')]",
+                        "properties": {
+                            "ipConfigurations": [
+                                {
+                                    "name": "[variables('interfaceIpConfig')]",
+                                    "properties": {
+                                        "subnet": {
+                                            "id": "[resourceId(parameters('existingVnetRg'), 'Microsoft.Network/virtualNetworks/subnets', parameters('existingVnetName'), parameters('existingSubnetName'))]"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.ContainerInstance/containerGroups",
+            "name": "[parameters('containerGroupName')]",
+            "apiVersion": "2019-12-01",
+            "location": "australiasoutheast",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkProfiles', variables('NetworkProfileName'))]"
+            ],
+            "properties": {
+                "containers": [
+                    {
+                        "name": "[parameters('containerName')]",
+                        "properties": {
+                            "image": "[parameters('sftpContainerImage')]",
+                            "environmentVariables": [
+                                {
+                                    "name": "SFTP_USERS",
+                                    "secureValue": "[concat(variables('sftpEnvVariable'))]"
+                                }
+                            ],
+                            "resources": {
+                                "requests": {
+                                    "cpu": "[int(parameters('containerCpuCores'))]",
+                                    "memoryInGB": "[float(parameters('containerMemoryInGb'))]"
+                                }
+                            },
+                            "ports": "[parameters('containerPorts')]",
+                            "volumeMounts": [
+                                {
+                                    "mountPath": "[concat('/home/', parameters('sftpUsers')[0], '/', 'uploadfileshare-', parameters('sftpUsers')[0])]",
+                                    "name": "[concat('uploadfileshare-', parameters('sftpUsers')[0])]",
+                                    "readOnly": false
+                                },
+                                {
+                                    "mountPath": "[concat('/home/', parameters('sftpUsers')[0], '/.ssh/keys')]",
+                                    "name": "[concat(parameters('sftpUsers')[0])]",
+                                    "readOnly": true
+                                },
+                                {
+                                    "mountPath": "[concat('/home/', parameters('sftpUsers')[1], '/', 'uploadfileshare-', parameters('sftpUsers')[1])]",
+                                    "name": "[concat('uploadfileshare-', parameters('sftpUsers')[1])]",
+                                    "readOnly": false
+                                },
+                                {
+                                    "mountPath": "[concat('/home/', parameters('sftpUsers')[1], '/.ssh/keys')]",
+                                    "name": "[concat(parameters('sftpUsers')[1])]",
+                                    "readOnly": true
+                                },
+                                {
+                                    "mountPath": "[concat('/home/', parameters('sftpUsers')[2], '/', 'uploadfileshare-', parameters('sftpUsers')[2])]",
+                                    "name": "[concat('uploadfileshare-', parameters('sftpUsers')[2])]",
+                                    "readOnly": false
+                                },
+                                {
+                                    "mountPath": "[concat('/home/', parameters('sftpUsers')[2], '/.ssh/keys')]",
+                                    "name": "[concat(parameters('sftpUsers')[2])]",
+                                    "readOnly": true
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "osType": "Linux",
+                "networkProfile": {
+                    "id": "[resourceId('Microsoft.Network/networkProfiles', variables('networkProfileName'))]"
+                },
+                "ipAddress": {
+                    "type": "Private",
+                    "ports": "[parameters('containerPorts')]"
+                },
+                "restartPolicy": "OnFailure",
+                "volumes": [
+                    {
+                        "name": "[concat('uploadfileshare-', parameters('sftpUsers')[0])]",
+                        "azureFile": {
+                            "readOnly": false,
+                            "shareName": "[concat('uploadfileshare-', parameters('sftpUsers')[0])]",
+                            "storageAccountName": "[parameters('existingStorageAccountName')]",
+                            "storageAccountKey": "[listKeys(variables('storageAccountId'), '2019-06-01').keys[0].value]"
+                        }
+                    },
+                    {
+                        "name": "[concat(parameters('sftpUsers')[0])]",
+                        "azureFile": {
+                            "readOnly": false,
+                            "shareName": "[concat('sshkey-', parameters('sftpUsers')[0])]",
+                            "storageAccountName": "[parameters('existingStorageAccountName')]",
+                            "storageAccountKey": "[listKeys(variables('storageAccountId'), '2019-06-01').keys[0].value]"
+                        }
+                    },
+                    {
+                        "name": "[concat('uploadfileshare-', parameters('sftpUsers')[1])]",
+                        "azureFile": {
+                            "readOnly": false,
+                            "shareName": "[concat('uploadfileshare-', parameters('sftpUsers')[1])]",
+                            "storageAccountName": "[parameters('existingStorageAccountName')]",
+                            "storageAccountKey": "[listKeys(variables('storageAccountId'), '2019-06-01').keys[0].value]"
+                        }
+                    },
+                    {
+                        "name": "[concat(parameters('sftpUsers')[1])]",
+                        "azureFile": {
+                            "readOnly": false,
+                            "shareName": "[concat('sshkey-', parameters('sftpUsers')[1])]",
+                            "storageAccountName": "[parameters('existingStorageAccountName')]",
+                            "storageAccountKey": "[listKeys(variables('storageAccountId'), '2019-06-01').keys[0].value]"
+                        }
+                    },
+                    {
+                        "name": "[concat('uploadfileshare-', parameters('sftpUsers')[2])]",
+                        "azureFile": {
+                            "readOnly": false,
+                            "shareName": "[concat('uploadfileshare-', parameters('sftpUsers')[2])]",
+                            "storageAccountName": "[parameters('existingStorageAccountName')]",
+                            "storageAccountKey": "[listKeys(variables('storageAccountId'), '2019-06-01').keys[0].value]"
+                        }
+                    },
+                    {
+                        "name": "[concat(parameters('sftpUsers')[2])]",
+                        "azureFile": {
+                            "readOnly": false,
+                            "shareName": "[concat('sshkey-', parameters('sftpUsers')[2])]",
+                            "storageAccountName": "[parameters('existingStorageAccountName')]",
+                            "storageAccountKey": "[listKeys(variables('storageAccountId'), '2019-06-01').keys[0].value]"
+                        }
+                    }
+                ]
+            }
+        }
+    ],
+    "outputs": {
+        "containerIPv4Address": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.ContainerInstance/containerGroups/', parameters('containerGroupName'))).ipAddress.ip]"
+        },
+        "userNames": {
+            "type": "array",
+            "value": "[parameters('sftpUsers')]"
+        }
+    }
+}
